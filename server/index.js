@@ -5,11 +5,14 @@ const multer = require("multer");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const path = require("path");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || "harshil_secret_key_123";
 
 // Setup storage for file uploads
 const storage = multer.diskStorage({
@@ -25,8 +28,19 @@ const upload = multer({ storage: storage });
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log("Connected to MongoDB successfully"))
+  .then(() => {
+    console.log("Connected to MongoDB successfully");
+    seedUser();
+  })
   .catch((err) => console.error("MongoDB connection error:", err));
+
+// User Schema
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true }
+});
+
+const User = mongoose.model('User', userSchema);
 
 // Application Schema
 const applicationSchema = new mongoose.Schema({
@@ -39,6 +53,31 @@ const applicationSchema = new mongoose.Schema({
 
 const Application = mongoose.model('Application', applicationSchema);
 
+// Seed function for default user
+const seedUser = async () => {
+    const defaultUsername = 'harshilsinha17@gmail.com';
+    const existingUser = await User.findOne({ username: defaultUsername });
+    if (!existingUser) {
+        const hashedPassword = await bcrypt.hash('Harshil#@123', 10);
+        await new User({ username: defaultUsername, password: hashedPassword }).save();
+        console.log(`Default user created: ${defaultUsername}`);
+    }
+};
+
+// Auth Middleware
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ success: false, message: "Authentication required" });
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ success: false, message: "Invalid or expired token" });
+        req.user = user;
+        next();
+    });
+};
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -49,8 +88,25 @@ if (!fs.existsSync('uploads')) {
     fs.mkdirSync('uploads');
 }
 
+// Auth Routes
+app.post("/login", async (req, res) => {
+    const { username, password } = req.body;
+    try {
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return res.status(400).json({ success: false, message: "Invalid credentials" });
+
+        const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+        res.json({ success: true, token, user: { username: user.username } });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Login failed" });
+    }
+});
+
 // Routes
-app.post("/send-email", upload.single('resume'), async (req, res) => {
+app.post("/send-email", authenticateToken, upload.single('resume'), async (req, res) => {
   const { to, subject, text } = req.body;
   const resume = req.file;
 
@@ -84,11 +140,9 @@ app.post("/send-email", upload.single('resume'), async (req, res) => {
           text,
         };
 
-        // If a new resume is uploaded, use it. Otherwise, look for a saved one.
         const persistentPath = path.join('uploads', 'persistent_resume.pdf');
         
         if (resume) {
-          // Save a copy as the persistent resume for future use
           fs.copyFileSync(resume.path, persistentPath);
           mailOptions.attachments = [
             {
@@ -97,7 +151,6 @@ app.post("/send-email", upload.single('resume'), async (req, res) => {
             }
           ];
         } else if (fs.existsSync(persistentPath)) {
-          // Use the saved resume
           mailOptions.attachments = [
             {
               filename: 'Harshil_Sinha_Resume.pdf',
@@ -116,7 +169,6 @@ app.post("/send-email", upload.single('resume'), async (req, res) => {
       }
     }
     
-    // Clean up temporary upload only
     if (resume) {
       fs.unlinkSync(resume.path);
     }
@@ -131,12 +183,12 @@ app.post("/send-email", upload.single('resume'), async (req, res) => {
   }
 });
 
-app.get("/resume-status", (req, res) => {
+app.get("/resume-status", authenticateToken, (req, res) => {
     const persistentPath = path.join('uploads', 'persistent_resume.pdf');
     res.json({ exists: fs.existsSync(persistentPath) });
 });
 
-app.get("/history", async (req, res) => {
+app.get("/history", authenticateToken, async (req, res) => {
   try {
     const history = await Application.find().sort({ timestamp: -1 });
     res.json(history);
