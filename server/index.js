@@ -2,6 +2,7 @@ const express = require("express");
 const nodemailer = require("nodemailer");
 const cors = require("cors");
 const multer = require("multer");
+const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const path = require("path");
 
@@ -9,10 +10,6 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
-
-// Middleware
-app.use(cors());
-app.use(express.json());
 
 // Setup storage for file uploads
 const storage = multer.diskStorage({
@@ -25,6 +22,26 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log("Connected to MongoDB successfully"))
+  .catch((err) => console.error("MongoDB connection error:", err));
+
+// Application Schema
+const applicationSchema = new mongoose.Schema({
+  to: String,
+  subject: String,
+  status: { type: String, enum: ['success', 'failed'] },
+  error: String,
+  timestamp: { type: Date, default: Date.now }
+});
+
+const Application = mongoose.model('Application', applicationSchema);
+
+// Middleware
+app.use(cors());
+app.use(express.json());
 
 // Ensure uploads directory exists
 const fs = require('fs');
@@ -41,11 +58,8 @@ app.post("/send-email", upload.single('resume'), async (req, res) => {
     return res.status(400).json({ success: false, message: "Recipient email is required." });
   }
 
-  // Split emails by comma or semicolon and clean them up
   const recipients = to.split(/[;,]+/).map(email => email.trim()).filter(email => email);
   
-  console.log(`Attempting to send emails to: ${recipients.join(", ")}`);
-
   const results = {
     total: recipients.length,
     successCount: 0,
@@ -61,7 +75,6 @@ app.post("/send-email", upload.single('resume'), async (req, res) => {
       },
     });
 
-    // Send emails
     for (const recipient of recipients) {
       try {
         let mailOptions = {
@@ -71,35 +84,41 @@ app.post("/send-email", upload.single('resume'), async (req, res) => {
           text,
         };
 
+        // If a new resume is uploaded, use it. Otherwise, look for a saved one.
+        const persistentPath = path.join('uploads', 'persistent_resume.pdf');
+        
         if (resume) {
+          // Save a copy as the persistent resume for future use
+          fs.copyFileSync(resume.path, persistentPath);
           mailOptions.attachments = [
             {
               filename: resume.originalname,
               path: resume.path
             }
           ];
+        } else if (fs.existsSync(persistentPath)) {
+          // Use the saved resume
+          mailOptions.attachments = [
+            {
+              filename: 'Harshil_Sinha_Resume.pdf',
+              path: persistentPath
+            }
+          ];
         }
 
         await transporter.sendMail(mailOptions);
         results.successCount++;
-        console.log(`Successfully sent to: ${recipient}`);
+        
+        await new Application({ to: recipient, subject, status: 'success' }).save();
       } catch (err) {
-        console.error(`Failed to send to ${recipient}:`, err.message);
         results.failures.push({ email: recipient, error: err.message });
+        await new Application({ to: recipient, subject, status: 'failed', error: err.message }).save();
       }
     }
     
-    // Clean up: delete the uploaded file after sending all emails
+    // Clean up temporary upload only
     if (resume) {
       fs.unlinkSync(resume.path);
-    }
-
-    if (results.successCount === 0 && recipients.length > 0) {
-      return res.status(500).json({ 
-        success: false, 
-        message: "Failed to send any emails.", 
-        details: results 
-      });
     }
 
     res.status(200).json({ 
@@ -108,8 +127,21 @@ app.post("/send-email", upload.single('resume'), async (req, res) => {
       details: results 
     });
   } catch (error) {
-    console.error("Critical error in mail handler:", error);
     res.status(500).json({ success: false, message: "Internal server error.", error: error.message });
+  }
+});
+
+app.get("/resume-status", (req, res) => {
+    const persistentPath = path.join('uploads', 'persistent_resume.pdf');
+    res.json({ exists: fs.existsSync(persistentPath) });
+});
+
+app.get("/history", async (req, res) => {
+  try {
+    const history = await Application.find().sort({ timestamp: -1 });
+    res.json(history);
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to fetch history" });
   }
 });
 
@@ -118,5 +150,5 @@ app.get("/", (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  // console.log(`Server running on http://localhost:${port}`);
 });

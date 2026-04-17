@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import {
   Send,
@@ -9,12 +9,18 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  History as HistoryIcon,
+  PlusCircle,
+  Clock,
+  ExternalLink,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const API_URL = "http://localhost:5000";
 
 function App() {
+  const [activeTab, setActiveTab] = useState("apply"); // 'apply' or 'history'
+  const [history, setHistory] = useState([]);
   const [form, setForm] = useState({
     to: "",
     subject:
@@ -40,8 +46,34 @@ harshilsinha17@gmail.com | +91-7004857014
 LinkedIn: linkedin.com/in/harshil-sinha`,
   });
   const [resume, setResume] = useState(null);
+  const [hasPersistentResume, setHasPersistentResume] = useState(false);
   const [status, setStatus] = useState({ type: "", msg: "" });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    checkResumeStatus();
+    if (activeTab === "history") {
+      fetchHistory();
+    }
+  }, [activeTab]);
+
+  const checkResumeStatus = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/resume-status`);
+      setHasPersistentResume(response.data.exists);
+    } catch (error) {
+      console.error("Failed to check resume status:", error);
+    }
+  };
+
+  const fetchHistory = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/history`);
+      setHistory(response.data);
+    } catch (error) {
+      console.error("Failed to fetch history:", error);
+    }
+  };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -79,8 +111,14 @@ LinkedIn: linkedin.com/in/harshil-sinha`,
 
       if (response.data.success) {
         setStatus({ type: "success", msg: response.data.message });
-        // We don't clear subject/body as they are defaults, but clear recipients
         setForm((prev) => ({ ...prev, to: "" }));
+        setResume(null);
+        checkResumeStatus();
+        
+        // Auto-remove status message after 15 seconds
+        setTimeout(() => {
+          setStatus({ type: "", msg: "" });
+        }, 15000);
       } else {
         setStatus({
           type: "error",
@@ -108,128 +146,208 @@ LinkedIn: linkedin.com/in/harshil-sinha`,
         transition={{ duration: 0.5 }}
       >
         <header>
-          <h1>JobMail</h1>
-          <p className="subtitle">Send personalized applications in bulk.</p>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+            }}
+          >
+            <div>
+              <h1>JobMail</h1>
+              <p className="subtitle">Track and send job applications.</p>
+            </div>
+            <div className="tabs">
+              <button
+                className={`tab-btn ${activeTab === "apply" ? "active" : ""}`}
+                onClick={() => setActiveTab("apply")}
+              >
+                <PlusCircle size={16} /> New Application
+              </button>
+              <button
+                className={`tab-btn ${activeTab === "history" ? "active" : ""}`}
+                onClick={() => setActiveTab("history")}
+              >
+                <HistoryIcon size={16} /> History ({history.length})
+              </button>
+            </div>
+          </div>
         </header>
 
-        <form onSubmit={sendEmail}>
-          <div className="form-group">
-            <label htmlFor="to">
-              <Mail
-                size={14}
-                style={{ marginRight: "6px", verticalAlign: "middle" }}
-              />
-              HR Email Addresses (comma separated)
-            </label>
-            <textarea
-              id="to"
-              name="to"
-              placeholder="e.g. hr1@company.com, hr2@company.com"
-              value={form.to}
-              onChange={handleChange}
-              style={{ minHeight: "60px" }}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="subject">
-              <Type
-                size={14}
-                style={{ marginRight: "6px", verticalAlign: "middle" }}
-              />
-              Subject Line
-            </label>
-            <input
-              id="subject"
-              name="subject"
-              type="text"
-              placeholder="Subject"
-              value={form.subject}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="text">
-              <User
-                size={14}
-                style={{ marginRight: "6px", verticalAlign: "middle" }}
-              />
-              Message Content
-            </label>
-            <textarea
-              id="text"
-              name="text"
-              placeholder="Message"
-              value={form.text}
-              onChange={handleChange}
-              style={{ minHeight: "200px" }}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              <FileText
-                size={14}
-                style={{ marginRight: "6px", verticalAlign: "middle" }}
-              />
-              Resume / CV (PDF)
-            </label>
-            <label className="file-upload">
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={handleFileChange}
-              />
-              <div className="file-info">
-                {resume ? (
-                  <>
-                    <CheckCircle size={16} color="#22c55e" /> {resume.name}
-                  </>
-                ) : (
-                  <>Click to upload your resume</>
-                )}
-              </div>
-            </label>
-          </div>
-
-          <button className="btn-send" type="submit" disabled={loading}>
-            {loading ? (
-              <Loader2 className="loader" />
-            ) : (
-              <>
-                <Send size={18} /> Send Application
-              </>
-            )}
-          </button>
-        </form>
-
-        <AnimatePresence>
-          {status.msg && (
+        <AnimatePresence mode="wait">
+          {activeTab === "apply" ? (
             <motion.div
-              className={`status-msg ${status.type}`}
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
+              key="apply"
+              initial={{ x: -10, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 10, opacity: 0 }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                }}
-              >
-                {status.type === "success" ? (
-                  <CheckCircle size={16} />
-                ) : (
-                  <AlertCircle size={16} />
-                )}
-                {status.msg}
-              </div>
+              <form onSubmit={sendEmail}>
+                <div className="form-group">
+                  <label htmlFor="to">
+                    <Mail
+                      size={14}
+                      style={{ marginRight: "6px", verticalAlign: "middle" }}
+                    />
+                    HR Email Addresses (comma separated)
+                  </label>
+                  <textarea
+                    id="to"
+                    name="to"
+                    placeholder="e.g. hr1@company.com, hr2@company.com"
+                    value={form.to}
+                    onChange={handleChange}
+                    style={{ minHeight: "60px" }}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="subject">
+                    <Type
+                      size={14}
+                      style={{ marginRight: "6px", verticalAlign: "middle" }}
+                    />
+                    Subject Line
+                  </label>
+                  <input
+                    id="subject"
+                    name="subject"
+                    type="text"
+                    placeholder="Subject"
+                    value={form.subject}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="text">
+                    <User
+                      size={14}
+                      style={{ marginRight: "6px", verticalAlign: "middle" }}
+                    />
+                    Message Content
+                  </label>
+                  <textarea
+                    id="text"
+                    name="text"
+                    placeholder="Message"
+                    value={form.text}
+                    onChange={handleChange}
+                    style={{ minHeight: "200px" }}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <FileText
+                      size={14}
+                      style={{ marginRight: "6px", verticalAlign: "middle" }}
+                    />
+                    Resume / CV (PDF)
+                  </label>
+                  <label className="file-upload">
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={handleFileChange}
+                    />
+                    <div className="file-info">
+                      {resume ? (
+                        <>
+                          <CheckCircle size={16} color="#22c55e" /> {resume.name}
+                        </>
+                      ) : hasPersistentResume ? (
+                        <>
+                          <CheckCircle size={16} color="#6366f1" /> Resume already saved (Click to update)
+                        </>
+                      ) : (
+                        <>Click to upload your resume</>
+                      )}
+                    </div>
+                  </label>
+                </div>
+
+                <button className="btn-send" type="submit" disabled={loading}>
+                  {loading ? (
+                    <Loader2 className="loader" />
+                  ) : (
+                    <>
+                      <Send size={18} /> Send Application
+                    </>
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {status.msg && (
+                    <motion.div
+                      className={`status-msg ${status.type}`}
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      style={{ marginTop: '1rem' }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        {status.type === "success" ? (
+                          <CheckCircle size={16} />
+                        ) : (
+                          <AlertCircle size={16} />
+                        )}
+                        {status.msg}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </form>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="history"
+              className="history-view"
+              initial={{ x: 10, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -10, opacity: 0 }}
+            >
+              {history.length === 0 ? (
+                <div className="empty-history">
+                  <Clock size={48} color="var(--text-muted)" />
+                  <p>No applications sent yet.</p>
+                </div>
+              ) : (
+                <div className="history-list">
+                  {history.map((item, index) => (
+                    <div className="history-item" key={index}>
+                      <div className="history-main">
+                        <div className="history-to">
+                          <Mail size={14} /> {item.to}
+                        </div>
+                        <div className="history-subj">{item.subject}</div>
+                        <div className="history-time">
+                          <Clock size={12} />{" "}
+                          {new Date(item.timestamp).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className={`history-status ${item.status}`}>
+                        {item.status === "success" ? (
+                          <CheckCircle size={16} />
+                        ) : (
+                          <AlertCircle size={16} />
+                        )}
+                        {item.status}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
