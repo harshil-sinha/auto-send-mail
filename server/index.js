@@ -12,6 +12,7 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/jobmailer";
 const JWT_SECRET = process.env.JWT_SECRET || "harshil_secret_key_123";
 
 // Setup storage for file uploads
@@ -27,7 +28,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI)
+mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log("Connected to MongoDB successfully");
     seedUser();

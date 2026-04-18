@@ -20,7 +20,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Background3D from "./components/Background3D";
 
-const API_URL = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function App() {
   const [activeTab, setActiveTab] = useState("apply"); // 'apply' or 'history'
