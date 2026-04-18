@@ -14,8 +14,11 @@ import {
   Clock,
   ExternalLink,
   LogOut,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import Background3D from "./components/Background3D";
 
 const API_URL = "http://localhost:5000";
 
@@ -49,6 +52,7 @@ harshilsinha17@gmail.com | +91-7004857014
 LinkedIn: linkedin.com/in/harshil-sinha`,
   });
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [resume, setResume] = useState(null);
   const [hasPersistentResume, setHasPersistentResume] = useState(false);
   const [status, setStatus] = useState({ type: "", msg: "" });
@@ -57,9 +61,10 @@ LinkedIn: linkedin.com/in/harshil-sinha`,
   useEffect(() => {
     if (token) {
         checkResumeStatus();
-        fetchHistory(); // Fetch always to update the counter
+        fetchHistory();
     }
   }, [activeTab, token]);
+
 
   const handleLoginChange = (e) => {
     setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
@@ -158,6 +163,7 @@ LinkedIn: linkedin.com/in/harshil-sinha`,
         setForm((prev) => ({ ...prev, to: "" }));
         setResume(null);
         checkResumeStatus();
+        fetchHistory(); // Update history counter immediately after success
         
         setTimeout(() => {
           setStatus({ type: "", msg: "" });
@@ -183,6 +189,7 @@ LinkedIn: linkedin.com/in/harshil-sinha`,
 
   return (
     <div className="container">
+      <Background3D />
       <motion.div
         className="card"
         initial={{ y: 20, opacity: 0 }}
@@ -197,12 +204,13 @@ LinkedIn: linkedin.com/in/harshil-sinha`,
             </header>
             <form onSubmit={handleLogin}>
               <div className="form-group">
-                <label htmlFor="username">Username</label>
+                <label htmlFor="username">Email Address</label>
                 <input
                   id="username"
                   name="username"
-                  type="text"
-                  placeholder="admin"
+                  type="email"
+                  placeholder="name@example.com"
+                  autoComplete="username"
                   value={loginForm.username}
                   onChange={handleLoginChange}
                   required
@@ -210,15 +218,26 @@ LinkedIn: linkedin.com/in/harshil-sinha`,
               </div>
               <div className="form-group">
                 <label htmlFor="password">Password</label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={loginForm.password}
-                  onChange={handleLoginChange}
-                  required
-                />
+                <div className="password-input-wrapper">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    value={loginForm.password}
+                    onChange={handleLoginChange}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex="-1"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
               <button className="btn-send" type="submit" disabled={loading}>
                 {loading ? <Loader2 className="loader" /> : "Login"}

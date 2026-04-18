@@ -24,11 +24,7 @@ html, body, #root {
 }
 
 body {
-  background-color: var(--bg-dark);
-  background-image: 
-    radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-    radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-    radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+  background-color: #020617;
   color: var(--text-main);
   min-height: 100vh;
   display: flex;
@@ -142,11 +138,13 @@ textarea {
 }
 
 .btn-send {
-  width: 100%;
+  width: fit-content;
+  min-width: 240px;
+  margin: 2rem auto 0 auto;
   background: var(--primary);
   color: white;
   border: none;
-  padding: 1rem;
+  padding: 1rem 2.5rem;
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
@@ -156,7 +154,6 @@ textarea {
   justify-content: center;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 2rem;
 }
 
 .btn-send:hover {
@@ -356,6 +353,35 @@ textarea {
   max-width: 480px;
   margin: 2rem auto;
   padding: 1rem;
+}
+
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  padding-right: 3rem !important; /* Make room for the eye */
+}
+
+.password-toggle {
+  position: absolute;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.password-toggle:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .user-pill {
