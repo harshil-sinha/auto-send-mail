@@ -56,7 +56,7 @@ const Application = mongoose.model('Application', applicationSchema);
 
 // Seed function for default user
 const seedUser = async () => {
-    const defaultUsername = 'harshilsinha17@gmail.com';
+    const defaultUsername = 'harshilsinha17@gmail.com'.toLowerCase();
     const existingUser = await User.findOne({ username: defaultUsername });
     if (!existingUser) {
         const hashedPassword = await bcrypt.hash('Harshil#@123', 10);
@@ -90,14 +90,28 @@ if (!fs.existsSync('uploads')) {
 }
 
 // Auth Routes
+app.get("/debug-db", async (req, res) => {
+  try {
+    const userCount = await User.countDocuments();
+    const specificUser = await User.findOne({ username: 'harshilsinha17@gmail.com' });
+    res.json({ 
+      totalUsers: userCount, 
+      harshilExists: !!specificUser,
+      mongoConnected: mongoose.connection.readyState === 1
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/login", async (req, res) => {
     const { username, password } = req.body;
     try {
-        const user = await User.findOne({ username });
-        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+        const user = await User.findOne({ username: username.toLowerCase() }); // Ignore case
+        if (!user) return res.status(404).json({ success: false, message: `User ${username} not found` });
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({ success: false, message: "Invalid credentials" });
+        if (!isMatch) return res.status(400).json({ success: false, message: "Invalid password" });
 
         const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
         res.json({ success: true, token, user: { username: user.username } });
